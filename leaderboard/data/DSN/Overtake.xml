@@ -1,0 +1,88 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes>
+
+   <!-- <route id="1825" town="Town12">
+      <waypoints>
+         <position x="1173.4" y="5318.5" z="371.0" />
+         <position x="1173.5" y="5452.5" z="370.6" />
+      </waypoints>
+      <scenarios>
+         <scenario name="ConstructionObstacleTwoWays_1" type="ConstructionObstacleTwoWays">
+            <distance value="43" />
+            <frequency from="70" to="149" />
+            <trigger_point x="1173.4" y="5328.5" yaw="89.9" z="371.0" />
+         </scenario>
+      </scenarios>
+      <weathers>
+         <weather route_percentage="0" cloudiness="10.0" precipitation="0.0" precipitation_deposits="40.0" wetness="50.0" wind_intensity="20.0" sun_azimuth_angle="285.0" sun_altitude_angle="25.0" fog_density="10.0" fog_distance="60.0" fog_falloff="1.0" scattering_intensity="1.0" mie_scattering_scale="0.03"/>
+         <weather route_percentage="100" cloudiness="10.0" precipitation="0.0" precipitation_deposits="40.0" wetness="50.0" wind_intensity="20.0" sun_azimuth_angle="285.0" sun_altitude_angle="25.0" fog_density="10.0" fog_distance="60.0" fog_falloff="1.0" scattering_intensity="1.0" mie_scattering_scale="0.03"/>
+      </weathers>
+   </route> -->
+
+   <!-- <route id="2509" road_id="837" town="Town12">
+      <waypoints>
+         <position x="-1477.3" y="6455.3" z="373.7" />
+         <position x="-1611.8" y="6466.5" z="372.7" />
+      </waypoints>
+      <scenarios>
+         <scenario name="ConstructionObstacle_1" type="ConstructioObstacle">
+            <distance value="45" />
+            <direction value="right" />
+            <speed value="50" />
+            <trigger_point x="-1487.4" y="6455.6" yaw="-182.1" z="373.6" />
+         </scenario>
+      </scenarios>
+      <weathers>
+         <weather cloudiness="5.0" fog_density="2.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="0" sun_altitude_angle="45.0" sun_azimuth_angle="-1.0" wetness="0.0" wind_intensity="10.0" />
+         <weather cloudiness="5.0" fog_density="2.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="100" sun_altitude_angle="45.0" sun_azimuth_angle="-1.0" wetness="0.0" wind_intensity="10.0" />
+      </weathers>
+   </route> -->
+
+   <!-- <route id="2510" road_id="837" town="Town12">
+      <waypoints>
+         <position x="-1477.3" y="6455.3" z="373.7" />
+         <position x="-1611.8" y="6466.5" z="372.7" />
+      </waypoints>
+      <scenarios>
+         <scenario name="ConstructionObstacle_1" type="ParkedObstacle">
+            <distance value="45" />
+            <direction value="right" />
+            <speed value="50" />
+            <trigger_point x="-1487.4" y="6455.6" yaw="-182.1" z="373.6" />
+         </scenario>
+      </scenarios>
+      <weathers>
+         <weather cloudiness="5.0" fog_density="2.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="0" sun_altitude_angle="45.0" sun_azimuth_angle="-1.0" wetness="0.0" wind_intensity="10.0" />
+         <weather cloudiness="5.0" fog_density="2.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="100" sun_altitude_angle="45.0" sun_azimuth_angle="-1.0" wetness="0.0" wind_intensity="10.0" />
+      </weathers>
+   </route> -->
+
+  <route id="2509" road_id="837" town="Town12">
+    <waypoints>
+      <position x="-1477.3" y="6455.3" z="373.7" />
+      <position x="-1611.8" y="6466.5" z="372.7" />
+    </waypoints>
+
+    <scenarios>
+      <!-- Parked obstacle scenario -->
+      <scenario name="ParkedObstacle_1" type="ParkedObstacle">
+        <distance value="45" />
+        <direction value="right" />
+        <speed value="0" />
+        <trigger_point x="-1487.4" y="6455.6" yaw="-182.1" z="373.6" />
+      </scenario>
+    </scenarios>
+
+    <weathers>
+      <weather cloudiness="5.0" fog_density="2.0" precipitation="0.0"
+               precipitation_deposits="0.0" route_percentage="0"
+               sun_altitude_angle="45.0" sun_azimuth_angle="-1.0"
+               wetness="0.0" wind_intensity="10.0" />
+      <weather cloudiness="5.0" fog_density="2.0" precipitation="0.0"
+               precipitation_deposits="0.0" route_percentage="100"
+               sun_altitude_angle="45.0" sun_azimuth_angle="-1.0"
+               wetness="0.0" wind_intensity="10.0" />
+    </weathers>
+  </route>
+
+</routes>

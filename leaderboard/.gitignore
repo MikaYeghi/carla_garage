@@ -5,3 +5,6 @@
 .pydevproject
 *.sh
 *.xml
+
+# Unignore the DSN folder
+!data/DSN/*.xml
