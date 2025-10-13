@@ -401,7 +401,8 @@ class RouteScenario(BasicScenario):
         self.scenario_triggerer = scenario_triggerer
 
         # Add the Background Activity
-        behavior.add_child(BackgroundBehavior(self.ego_vehicles[0], self.route, name="BackgroundActivity"))
+        # NOTE: This line is intentionally commented out to disable background traffic spawning.
+        # behavior.add_child(BackgroundBehavior(self.ego_vehicles[0], self.route, name="BackgroundActivity"))
 
         behavior.add_children(scenario_behaviors)
         return behavior
