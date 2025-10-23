@@ -26,10 +26,14 @@ from dataclasses import dataclass
 from typing import Tuple, Optional, List, Dict
 import math
 import numpy as np
+import carla
+from collections import deque
 
 # Visualizations (call manually)
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+from matplotlib.patches import Polygon as MplPolygon
+from dataclasses import dataclass
 
 
 # --- Public dataclass for output ---
@@ -767,18 +771,220 @@ class SafetyLayer:
 
     # -------------------- Placeholders for downstream steps --------------------
 
-    def detect_faults(self, mission_detections, safety_obstacles) -> bool:
-        """Placeholder: compare mission vs safety layer outputs."""
-        return False
-
     def assess_collision_risk(self, safety_obstacles) -> bool:
         """Placeholder: Perception Simplex existence-region overlap."""
         return False
 
-    def override_control(self):
-        """Placeholder: return an emergency VehicleControl (to be provided by caller/carla)."""
-        return None
-
     def limit_velocity(self, control_mission):
         """Placeholder: clamp velocity if needed."""
         return control_mission
+    
+    def detect_faults(self,
+                      mission_detections: List[np.ndarray],
+                      safety_obstacles: List[Obstacle]) -> dict:
+        """
+        Faithful reimplementation of VerifiableObstacleDetection::processOneFrameForApollo()
+        + DecisionComponent::ProcessDetections().
+        Returns:
+            dict with keys:
+              'coverages': [float], 'closest_points': [((x1,y1),(x2,y2))],
+              'segments_mission': [...], 'segments_safety': [...], 'segments_overlap': [...],
+              'fault_detected': bool
+        """
+        def find_endpoints(points: np.ndarray) -> tuple:
+            if len(points) == 0:
+                return (np.zeros(2), np.zeros(2))
+            xmin_i = np.argmin(points[:, 0])
+            xmax_i = np.argmax(points[:, 0])
+            return (points[xmin_i], points[xmax_i])
+
+        def find_overlap(seg1: tuple, seg2: tuple) -> tuple:
+            """Exact match to C++ overlap logic (1D interval on x-axis)."""
+            a1, a2 = sorted([seg1[0][0], seg1[1][0]])
+            b1, b2 = sorted([seg2[0][0], seg2[1][0]])
+            if a2 <= b1 or a1 >= b2:
+                return (np.zeros(2), np.zeros(2))
+            lo = max(a1, b1)
+            hi = min(a2, b2)
+            return (np.array([lo, 0]), np.array([hi, 0]))
+
+        # Convert mission detections into an appropriate format
+        mission_detections = self.mission_boxes_to_polygons(mission_detections)
+
+        coverages = []
+        closest_points = []
+        seg_mission_all, seg_safety_all, seg_overlap_all = [], [], []
+        ego_center = np.array([0.0, 0.0])
+
+        for obs in safety_obstacles:
+            # Flatten bounding box corners in XY-plane
+            cx, cy, _ = obs.center
+            ex, ey, _ = obs.extent
+            poly_safety = np.array([
+                [cx - ex, cy - ey],
+                [cx + ex, cy - ey],
+                [cx + ex, cy + ey],
+                [cx - ex, cy + ey]
+            ])
+
+            # Distance endpoints between ego and safety obstacle
+            dvec = poly_safety[np.argmin(np.linalg.norm(poly_safety - ego_center, axis=1))]
+            closest_points.append((ego_center, dvec))
+
+            # Perpendicular projection line (ego→obstacle)
+            direction = dvec / (np.linalg.norm(dvec) + 1e-9)
+            n = np.array([-direction[1], direction[0]])
+
+            def project_point(p):
+                line_point = dvec
+                return line_point + np.dot(p - line_point, n) * n
+
+            # Project all polygon vertices
+            proj_safety = np.array([project_point(p) for p in poly_safety])
+            seg_safety = find_endpoints(proj_safety)
+            seg_safety_all.append(seg_safety)
+
+            # Collect all mission polygon projections
+            proj_mission_all = []
+            for poly in mission_detections:
+                proj_mission_all.extend([project_point(p) for p in poly])
+            proj_mission_all = np.array(proj_mission_all)
+            seg_mission = find_endpoints(proj_mission_all)
+            seg_mission_all.append(seg_mission)
+
+            # Overlap + coverage
+            seg_overlap = find_overlap(seg_mission, seg_safety)
+            seg_overlap_all.append(seg_overlap)
+
+            len_safety = np.linalg.norm(seg_safety[1] - seg_safety[0])
+            len_overlap = np.linalg.norm(seg_overlap[1] - seg_overlap[0])
+            coverage = (len_overlap / len_safety) if len_safety > 1e-6 else 0.0
+            coverages.append(coverage)
+
+        fault_detected = any(c < 0.75 for c in coverages)  # matches coverage_limit_ = 0.75
+
+        result = {
+            'coverages': coverages,
+            'closest_points': closest_points,
+            'segments_mission': seg_mission_all,
+            'segments_safety': seg_safety_all,
+            'segments_overlap': seg_overlap_all,
+            'fault_detected': fault_detected
+        }
+        if len(mission_detections) > 0:
+            import pdb; pdb.set_trace()
+
+        return result
+
+    def override_control(self, fault_detected: bool = False):
+        """
+        Faithful reimplementation of DecisionComponent::ProcessControlCommand().
+        If override active, produce emergency stop command.
+        """
+        if fault_detected:
+            # safety override active
+            return carla.VehicleControl(throttle=0.0, brake=100.0, speed=0.0)
+        else:
+            # normal control (placeholder)
+            return carla.VehicleControl(throttle=0.5, brake=0.0, speed=5.0)
+
+    # -------------------- Visualization of Mission vs Safety (SVG equivalent) --------------------
+
+    @staticmethod
+    def visualize_detections_comparison(mission_detections: List[np.ndarray],
+                                        safety_obstacles: List[Obstacle],
+                                        result: dict) -> None:
+        """
+        2D plot equivalent to VerifiableObstacleDetection::plot().
+        Colors:
+            blue = ego, red = mission, green = safety, yellow = overlap.
+        """
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_aspect('equal')
+        ax.set_title("Verifiable Obstacle Detection – Mission vs Safety")
+        ax.set_xlabel("X [m]")
+        ax.set_ylabel("Y [m]")
+
+        # ego rectangle
+        ego = np.array([[2.51, 1.065], [2.51, -1.065], [-2.51, -1.065], [-2.51, 1.065]])
+        # Rotate ego by -90° to match mission detections’ transformed frame
+        R_align = np.array([[0, 1],
+                            [-1, 0]], dtype=float)
+        ego = (R_align @ ego.T).T
+        ax.add_patch(MplPolygon(ego, closed=True, fill=False, edgecolor='blue', linewidth=2, label='Ego'))
+
+        # mission detections
+        for poly in mission_detections:
+            ax.add_patch(MplPolygon(poly, closed=True, fill=False, edgecolor='red', linewidth=1.5))
+
+        # safety detections
+        for obs in safety_obstacles:
+            cx, cy, _ = obs.center
+            ex, ey, _ = obs.extent
+            rect = np.array([[cx - ex, cy - ey],
+                             [cx + ex, cy - ey],
+                             [cx + ex, cy + ey],
+                             [cx - ex, cy + ey]])
+            ax.add_patch(MplPolygon(rect, closed=True, fill=False, edgecolor='green', linewidth=1.5))
+
+        # projected segments and overlaps
+        for (sm, ss, so) in zip(result['segments_mission'], result['segments_safety'], result['segments_overlap']):
+            ax.plot([sm[0][0], sm[1][0]], [sm[0][1], sm[1][1]], color='darkred', linewidth=2)
+            ax.plot([ss[0][0], ss[1][0]], [ss[0][1], ss[1][1]], color='darkgreen', linewidth=2)
+            ax.plot([so[0][0], so[1][0]], [so[0][1], so[1][1]], color='yellow', linewidth=3)
+
+        ax.legend(loc='upper right')
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.tight_layout()
+        plt.show()
+
+    @staticmethod
+    def mission_boxes_to_polygons(mission_detections) -> List[np.ndarray]:
+        """
+        Accepts:
+          - deque([ [bb, bb, ...] ]) as in your SensorAgent
+          - or plain list of bb entries.
+        bb format (as used elsewhere in your code):
+          [x, y, extent_x, extent_y, yaw, _, _, class_id, score]
+        Returns:
+          List of (4,2) numpy arrays (rotated rectangles) in ego frame.
+        """
+        # Unwrap deque -> list if needed
+        if isinstance(mission_detections, deque):
+            if len(mission_detections) == 0:
+                return []
+            mission_detections = mission_detections[0]
+
+        polys: List[np.ndarray] = []
+        for bb in mission_detections:
+            bb = np.asarray(bb, dtype=float)
+            if bb.shape[0] < 5:
+                # Not enough fields; skip safely
+                continue
+
+            cx, cy = bb[0], bb[1]
+            # Try to read extents at [2],[3]; if [3] missing, fall back to [3]=[2]
+            ex = float(bb[2]) if bb.shape[0] > 2 else 0.0
+            ey = float(bb[3]) if bb.shape[0] > 3 else float(bb[2])
+            yaw = float(bb[4])
+
+            # Half extents -> corner offsets in local box frame
+            # (ex,ey) are already half-lengths in your codebase usage
+            corners_local = np.array([
+                [-ex, -ey],
+                [ +ex, -ey],
+                [ +ex, +ey],
+                [ -ex, +ey],
+            ], dtype=float)
+
+            # Rotate by yaw, then translate by (cx,cy)
+            c, s = np.cos(yaw), np.sin(yaw)
+            R = np.array([[c, -s],
+                          [s,  c]], dtype=float)
+            R_align = np.array([[0, 1],
+                    [-1, 0]], dtype=float)  # -90° rotation
+            corners_world = (R @ corners_local.T).T + np.array([cx, cy], dtype=float)
+            corners_world = np.stack([corners_world[:, 1], -corners_world[:, 0]], axis=1)
+            polys.append(corners_world)
+
+        return polys
