@@ -770,9 +770,62 @@ class SafetyLayer:
         return obstacles
 
     # -------------------- Placeholders for downstream steps --------------------
+    def assess_collision_risk(
+        self,
+        safety_obstacles: List[Obstacle],
+        speed: Optional[float] = None,
+        *,
+        a_max: float = 7.5,
+        L_max: float = 0.04,
+        width_margin: float = 0.25
+    ) -> bool:
+        """
+        Perception Simplex-style collision risk assessment:
+        True if any safety obstacle intersects the ego's stopping corridor.
+        """
+        def boxes_overlap(box1, box2):
+            """Return True if two boxes (x_min,y_min,x_max,y_max) overlap."""
+            x1_min, y1_min, x1_max, y1_max = box1
+            x2_min, y2_min, x2_max, y2_max = box2
+            if x1_max < x2_min or x2_max < x1_min:
+                return False
+            if y1_max < y2_min or y2_max < y1_min:
+                return False
+            return True
 
-    def assess_collision_risk(self, safety_obstacles) -> bool:
-        """Placeholder: Perception Simplex existence-region overlap."""
+        # --- Get speed ---
+        if speed is None:
+            speed = getattr(self, "current_speed", 0.0)
+        v = max(0.0, float(speed))
+
+        # --- Compute stopping distance (Perception Simplex) ---
+        if a_max <= 1e-6:
+            D_stop = 0.0
+        else:
+            D_stop = v * L_max + (v * v) / (2.0 * a_max)
+        if D_stop <= 1e-3:
+            return False
+
+        # --- Ego geometry ---
+        ego_half_len = 2.51   # [m] half length
+        ego_half_wid = 1.065  # [m] half width
+
+        # Corridor from *front bumper* to braking stop distance
+        x_min_corr = ego_half_len
+        x_max_corr = ego_half_len + D_stop
+        y_min_corr = -(ego_half_wid + width_margin)
+        y_max_corr = +(ego_half_wid + width_margin)
+
+        corridor_box = (x_min_corr, y_min_corr, x_max_corr, y_max_corr)
+
+        # --- Check all obstacles ---
+        for obs in safety_obstacles:
+            cx, cy, _ = obs.center
+            ex, ey, _ = obs.extent
+            obs_box = (cx - ex, cy - ey, cx + ex, cy + ey)
+            if boxes_overlap(corridor_box, obs_box):
+                return True
+
         return False
 
     def limit_velocity(self, control_mission, speed, a_max=7.5, L_max=0.01, D_stop_max=0.1):

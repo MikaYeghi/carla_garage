@@ -18,6 +18,8 @@ class SafeAgent(SensorAgent):
         print("[SafeAgent] Initialized.")
 
     def run_step(self, input_data, timestamp, sensors=None):
+        speed = input_data['speed'][1]['speed']
+
         # === 1. Mission control ===
         control_mission = super().run_step(input_data, timestamp, sensors)
 
@@ -27,13 +29,13 @@ class SafeAgent(SensorAgent):
 
         # === 3. Fault detection ===
         fault = self.safety_layer.detect_faults(mission_detections, safety_obstacles)
-        collision_risk = self.safety_layer.assess_collision_risk(safety_obstacles)
+        collision_risk = self.safety_layer.assess_collision_risk(safety_obstacles, speed)
 
         # === 4. Decision logic (Simplex supervisor) ===
         if fault and collision_risk:
             control_final = self.safety_layer.override_control()
         else:
-            control_final = self.safety_layer.limit_velocity(control_mission, input_data['speed'][1]['speed'])
+            control_final = self.safety_layer.limit_velocity(control_mission, speed)
 
         # === 5. Logging ===
         # if self.logger:
