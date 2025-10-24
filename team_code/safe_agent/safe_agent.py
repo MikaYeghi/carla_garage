@@ -32,10 +32,8 @@ class SafeAgent(SensorAgent):
         # === 4. Decision logic (Simplex supervisor) ===
         if fault and collision_risk:
             control_final = self.safety_layer.override_control()
-            mode = "SAFETY_OVERRIDE"
         else:
-            control_final = self.safety_layer.limit_velocity(control_mission)
-            mode = "MISSION"
+            control_final = self.safety_layer.limit_velocity(control_mission, input_data['speed'][1]['speed'])
 
         # === 5. Logging ===
         # if self.logger:

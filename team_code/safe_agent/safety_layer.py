@@ -775,9 +775,46 @@ class SafetyLayer:
         """Placeholder: Perception Simplex existence-region overlap."""
         return False
 
-    def limit_velocity(self, control_mission):
-        """Placeholder: clamp velocity if needed."""
-        return control_mission
+    def limit_velocity(self, control_mission, speed, a_max=7.5, L_max=0.01, D_stop_max=0.1):
+        """
+        Clamp the commanded velocity to the maximum provably safe velocity
+        v_safe_max derived from the Perception Simplex safety proof.
+
+        Args:
+            control_mission: carla.VehicleControl
+                Vehicle control command (with throttle, brake, steer, etc.)
+            speed: float
+                Current ego-vehicle speed [m/s].
+            a_max: float
+                Maximum deceleration capability of the AV [m/s²].
+            L_max: float
+                Worst-case latency or actuation delay [s].
+            D_stop_max: float
+                Maximum stopping distance (LiDAR detectability range) [m].
+
+        Returns:
+            Modified carla.VehicleControl ensuring speed ≤ v_safe_max.
+        """
+        # ------------------------------------------------------------------
+        # 1. Compute maximum provably safe velocity (Theorem 4, Perception Simplex)
+        # ------------------------------------------------------------------
+        # Equation:
+        #   v_safe_max = sqrt((a_max * L_max)^2 + 2 * a_max * D_stop_max) - a_max * L_max
+        # This guarantees that even under worst-case delay and braking latency,
+        # the vehicle can fully stop before leaving its perception horizon.
+        # v_safe_max = np.sqrt((a_max * L_max) ** 2 + 2 * a_max * D_stop_max) - a_max * L_max
+        # NOTE: hard-coded value!
+        v_safe_max = 17.71
+
+        # ------------------------------------------------------------------
+        # 2. Compare current speed to the provably safe bound
+        # ------------------------------------------------------------------
+        if speed > v_safe_max:
+            control_final = carla.VehicleControl(throttle=0.0, steer=0.0, brake=1.0)
+        else:
+            control_final = control_mission
+
+        return control_final
     
     def detect_faults(self,
                       mission_detections: List[np.ndarray],
@@ -871,22 +908,15 @@ class SafetyLayer:
             'segments_overlap': seg_overlap_all,
             'fault_detected': fault_detected
         }
-        if len(mission_detections) > 0:
-            import pdb; pdb.set_trace()
 
         return result
 
-    def override_control(self, fault_detected: bool = False):
+    def override_control(self):
         """
         Faithful reimplementation of DecisionComponent::ProcessControlCommand().
         If override active, produce emergency stop command.
         """
-        if fault_detected:
-            # safety override active
-            return carla.VehicleControl(throttle=0.0, brake=100.0, speed=0.0)
-        else:
-            # normal control (placeholder)
-            return carla.VehicleControl(throttle=0.5, brake=0.0, speed=5.0)
+        return carla.VehicleControl(throttle=0.0, brake=1.0, steer=0.0)
 
     # -------------------- Visualization of Mission vs Safety (SVG equivalent) --------------------
 
