@@ -1,5 +1,5 @@
 from sensor_agent import SensorAgent
-from safety_layer import SafetyLayer
+from perception_simplex.safety_layer import SafetyLayer
 
 def save_run_data(frame_id, run_data):
     import os, pickle
