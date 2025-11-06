@@ -218,3 +218,6 @@ model_ckpt
 
 # Simulation results
 simulation_results.json
+
+# Runtime data
+run_data

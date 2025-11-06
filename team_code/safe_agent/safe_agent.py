@@ -1,6 +1,13 @@
 from sensor_agent import SensorAgent
 from safety_layer import SafetyLayer
 
+def save_run_data(frame_id, run_data):
+    import os, pickle
+    assert frame_id is not None
+    save_dir = "run_data/1-1_Obstacle_Lidar+Mission_Detections+Speed+Mission_Control"
+    os.makedirs(save_dir, exist_ok=True)
+    with open(os.path.join(save_dir, f"frame-{frame_id}.pkl"), "wb") as handler:
+        pickle.dump(run_data, handler, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Leaderboard function that selects the class used as agent.
 def get_entry_point():
@@ -26,6 +33,23 @@ class SafeAgent(SensorAgent):
         # === 2. Safety layer perception ===
         safety_obstacles = self.safety_layer.detect_obstacles(input_data.get('lidar'))
         mission_detections = self.get_mission_detections()
+
+        # Save the run data
+        run_data = {
+            "lidar_points": input_data.get('lidar')[1],
+            "mission_detections": mission_detections,
+            "speed": speed,
+            "control_mission": {
+                "throttle": control_mission.throttle,
+                "steer": control_mission.steer,
+                "brake": control_mission.brake,
+                "hand_brake": control_mission.hand_brake, 
+                "reverse": control_mission.reverse,
+                "manual_gear_shift": control_mission.manual_gear_shift,
+                "gear": control_mission.gear                
+            }
+        }
+        # save_run_data(input_data.get('lidar')[0], run_data)
 
         # === 3. Fault detection ===
         fault = self.safety_layer.detect_faults(mission_detections, safety_obstacles)
