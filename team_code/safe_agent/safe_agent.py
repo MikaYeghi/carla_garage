@@ -1,3 +1,4 @@
+import carla
 from sensor_agent import SensorAgent
 from perception_simplex.safety_layer import SafetyLayer
 
@@ -25,19 +26,39 @@ class SafeAgent(SensorAgent):
         print("[SafeAgent] Initialized.")
 
     def run_step(self, input_data, timestamp, sensors=None):
+        # Extract speed & lidar data
         speed = input_data['speed'][1]['speed']
+        lidar_data = input_data.get('lidar')[1]
+        print(f"Speed: {round(speed, 2)} m/s")
 
-        # === 1. Mission control ===
+        # Extract mission layer control action
         control_mission = super().run_step(input_data, timestamp, sensors)
 
-        # === 2. Safety layer perception ===
-        safety_obstacles = self.safety_layer.detect_obstacles(input_data.get('lidar'))
-        mission_detections = self.get_mission_detections()
+        # Detect obstacles using the safety layer
+        safety_layer_detections = self.safety_layer.detect_obstacles(lidar_data)
+
+        # Detect faults in the mission detections
+        mission_layer_detections = self.get_mission_detections()
+        faulty_detections = self.safety_layer.detect_faults(safety_layer_detections, mission_layer_detections)
+
+        # Assess collision risk for each safety layer detection
+        collision_risks = self.safety_layer.assess_collision_risk(safety_layer_detections, speed, faulty_detections)
+
+        # Implement the simplex logic
+        control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed)
+        
+        # Convert the safety override into a CARLA VehicleControl object
+        if safety_override:
+            control_final = carla.VehicleControl(
+                steer=control_final['steer'],
+                brake=control_final['brake'],
+                throttle=control_final['throttle']
+            )
 
         # Save the run data
         run_data = {
             "lidar_points": input_data.get('lidar')[1],
-            "mission_detections": mission_detections,
+            "mission_detections": mission_layer_detections,
             "speed": speed,
             "control_mission": {
                 "throttle": control_mission.throttle,
@@ -51,21 +72,11 @@ class SafeAgent(SensorAgent):
         }
         # save_run_data(input_data.get('lidar')[0], run_data)
 
-        # === 3. Fault detection ===
-        fault = self.safety_layer.detect_faults(mission_detections, safety_obstacles)
-        collision_risk = self.safety_layer.assess_collision_risk(safety_obstacles, speed)
-
-        # === 4. Decision logic (Simplex supervisor) ===
-        if fault and collision_risk:
-            control_final = self.safety_layer.override_control()
-        else:
-            control_final = self.safety_layer.limit_velocity(control_mission, speed)
-
-        # === 5. Logging ===
-        # if self.logger:
-        #     self.logger.log_step(input_data, timestamp, sensors, control_final, mode=mode)
-
         return control_final
     
     def get_mission_detections(self):
-        return self.bb_buffer
+        bb_buffer = self.bb_buffer
+        if len(bb_buffer) == 0:
+            return []
+        else:
+            return bb_buffer[0]
