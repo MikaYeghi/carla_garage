@@ -1,5 +1,7 @@
+import os
 import carla
 from sensor_agent import SensorAgent
+from perception_simplex.utils import visualize_bev
 from perception_simplex.safety_layer import SafetyLayer
 
 def save_run_data(frame_id, run_data):
@@ -22,7 +24,10 @@ def strtobool(v):
 class SafeAgent(SensorAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
+        # Initialize the safety layer
         self.safety_layer = SafetyLayer()
+
         print("[SafeAgent] Initialized.")
 
     def run_step(self, input_data, timestamp, sensors=None):
@@ -71,6 +76,21 @@ class SafeAgent(SensorAgent):
             }
         }
         # save_run_data(input_data.get('lidar')[0], run_data)
+
+        # Visualize from safety layer's perspective
+        if self.config.debug and self.save_path:
+            visualize_bev(
+                lidar_data,
+                safety_layer_detections,
+                save_path=os.path.join(self.save_path, f"{self.step:04}-SL.png"),
+                xlim=(-30, 30),
+                ylim=(-60, 0),
+                mission_layer_detections=mission_layer_detections,
+                faulty_detections=faulty_detections,
+                collision_risks=collision_risks,
+                speed=speed,
+                safety_override=safety_override
+            )
 
         return control_final
     
