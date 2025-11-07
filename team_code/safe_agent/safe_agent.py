@@ -1,8 +1,8 @@
 import os
 import carla
 from sensor_agent import SensorAgent
-from perception_simplex.utils import visualize_bev
 from perception_simplex.safety_layer import SafetyLayer
+from perception_simplex.utils import visualize_bev, preprocess_lidar_data, preprocess_mission_layer_detections
 
 def save_run_data(frame_id, run_data):
     import os, pickle
@@ -26,15 +26,22 @@ class SafeAgent(SensorAgent):
         super().__init__(*args, **kwargs)
         
         # Initialize the safety layer
-        self.safety_layer = SafetyLayer()
+        self.safety_layer = SafetyLayer(
+            iou_thresh=0.75
+        )
 
         print("[SafeAgent] Initialized.")
 
     def run_step(self, input_data, timestamp, sensors=None):
-        # Extract speed & lidar data
+        # Extract speed, lidar data and mission detections
         speed = input_data['speed'][1]['speed']
         lidar_data = input_data.get('lidar')[1]
+        mission_layer_detections = self.get_mission_detections()
         print(f"Speed: {round(speed, 2)} m/s")
+
+        # Preprocess some of the data
+        lidar_data = preprocess_lidar_data(lidar_data)
+        mission_layer_detections = preprocess_mission_layer_detections(mission_layer_detections)
 
         # Extract mission layer control action
         control_mission = super().run_step(input_data, timestamp, sensors)
@@ -43,7 +50,6 @@ class SafeAgent(SensorAgent):
         safety_layer_detections = self.safety_layer.detect_obstacles(lidar_data)
 
         # Detect faults in the mission detections
-        mission_layer_detections = self.get_mission_detections()
         faulty_detections = self.safety_layer.detect_faults(safety_layer_detections, mission_layer_detections)
 
         # Assess collision risk for each safety layer detection
@@ -59,6 +65,7 @@ class SafeAgent(SensorAgent):
                 brake=control_final['brake'],
                 throttle=control_final['throttle']
             )
+            print("BRAKE!")
 
         # Save the run data
         run_data = {
@@ -82,7 +89,7 @@ class SafeAgent(SensorAgent):
             visualize_bev(
                 lidar_data,
                 safety_layer_detections,
-                save_path=os.path.join(self.save_path, f"{self.step:04}-SL.png"),
+                save_path=os.path.join(self.save_path, f"SL-{self.step:04}.png"),
                 xlim=(-30, 30),
                 ylim=(-60, 0),
                 mission_layer_detections=mission_layer_detections,
