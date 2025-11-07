@@ -53,7 +53,7 @@ class SafeAgent(SensorAgent):
         faulty_detections = self.safety_layer.detect_faults(safety_layer_detections, mission_layer_detections)
 
         # Assess collision risk for each safety layer detection
-        collision_risks = self.safety_layer.assess_collision_risk(safety_layer_detections, speed, faulty_detections)
+        collision_risks, braking_area_box = self.safety_layer.assess_collision_risk(safety_layer_detections, speed, faulty_detections)
 
         # Implement the simplex logic
         control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed)
@@ -101,7 +101,8 @@ class SafeAgent(SensorAgent):
                 faulty_detections=faulty_detections,
                 collision_risks=collision_risks,
                 speed=speed,
-                safety_override=safety_override
+                safety_override=safety_override,
+                braking_area_box=braking_area_box
             )
 
         print(f"Speed: {round(speed, 2)} m/s. Brake: {safety_override}.")
