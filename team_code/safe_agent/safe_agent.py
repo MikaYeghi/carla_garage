@@ -29,15 +29,15 @@ class SafeAgent(SensorAgent):
         self.safety_layer = SafetyLayer(
             iou_thresh=0.75
         )
+        self.safety_override = False
 
         print("[SafeAgent] Initialized.")
 
     def run_step(self, input_data, timestamp, sensors=None):
         # Extract speed, lidar data and mission detections
-        speed = input_data['speed'][1]['speed']
-        lidar_data = input_data.get('lidar')[1]
+        speed = input_data['speed'][1]['speed'].copy()
+        lidar_data = input_data['lidar'][1].copy()
         mission_layer_detections = self.get_mission_detections()
-        print(f"Speed: {round(speed, 2)} m/s")
 
         # Preprocess some of the data
         lidar_data = preprocess_lidar_data(lidar_data)
@@ -57,6 +57,11 @@ class SafeAgent(SensorAgent):
 
         # Implement the simplex logic
         control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed)
+
+        # Safety Layer does not work for even steps. If it was `safety_override` last time -- keep applying it.
+        if self.step % 2 == 0 and self.safety_override:
+            control_final = self.safety_layer.override_control()
+            safety_override = True
         
         # Convert the safety override into a CARLA VehicleControl object
         if safety_override:
@@ -65,7 +70,7 @@ class SafeAgent(SensorAgent):
                 brake=control_final['brake'],
                 throttle=control_final['throttle']
             )
-            print("BRAKE!")
+        self.safety_override = safety_override
 
         # Save the run data
         run_data = {
@@ -98,6 +103,8 @@ class SafeAgent(SensorAgent):
                 speed=speed,
                 safety_override=safety_override
             )
+
+        print(f"Speed: {round(speed, 2)} m/s. Brake: {safety_override}.")
 
         return control_final
     
