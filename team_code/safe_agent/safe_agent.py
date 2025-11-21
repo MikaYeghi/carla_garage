@@ -26,10 +26,11 @@ class SafeAgent(SensorAgent):
         super().__init__(*args, **kwargs)
         
         # Initialize the safety layer
-        self.safety_layer = SafetyLayer(
-            iou_thresh=0.75
-        )
+        self.safety_layer = SafetyLayer()
         self.safety_override = False
+
+        # Visualization config
+        self.visualize = int(os.environ.get('VISUALIZE', 0)) == 1
 
         print("[SafeAgent] Initialized.")
 
@@ -90,7 +91,7 @@ class SafeAgent(SensorAgent):
         # save_run_data(input_data.get('lidar')[0], run_data)
 
         # Visualize from safety layer's perspective
-        if self.config.debug and self.save_path:
+        if self.visualize and self.save_path:
             visualize_bev(
                 lidar_data,
                 safety_layer_detections,
