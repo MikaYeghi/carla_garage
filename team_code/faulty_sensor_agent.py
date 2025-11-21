@@ -162,7 +162,7 @@ class FaultySensorAgent(SensorAgent):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print("[FaultySensorAgent] Initialized (currently identical to SensorAgent).")
+        print("[FaultySensorAgent] Initialized.")
 
         # Ego actions logger
         self.ego_actions_logger = EgoActionsLogger(*args, **kwargs)

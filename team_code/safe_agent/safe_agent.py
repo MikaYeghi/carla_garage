@@ -1,6 +1,7 @@
 import os
 import carla
 from sensor_agent import SensorAgent
+from faulty_sensor_agent import FaultySensorAgent
 from perception_simplex.safety_layer import SafetyLayer
 from perception_simplex.utils import visualize_bev, preprocess_lidar_data, preprocess_mission_layer_detections
 
@@ -21,20 +22,25 @@ def strtobool(v):
   return str(v).lower() in ('yes', 'y', 'true', 't', '1', 'True')
 
 
-class SafeAgent(SensorAgent):
+class SafeAgent(FaultySensorAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
         # Initialize the safety layer
         self.safety_layer = SafetyLayer()
         self.safety_override = False
+        self.safety_enabled = int(os.environ.get('SAFETY', 0)) == 1
 
         # Visualization config
         self.visualize = int(os.environ.get('VISUALIZE', 0)) == 1
 
-        print("[SafeAgent] Initialized.")
+        print(f"[SafeAgent] Initialized. Safety: {'enabled' if self.safety_enabled else 'disabled'}.")
 
     def run_step(self, input_data, timestamp, sensors=None):
+        # Run only the mission layer if safety is disabled
+        if not self.safety_enabled:
+            return super().run_step(input_data, timestamp, sensors)
+
         # Extract speed, lidar data and mission detections
         speed = input_data['speed'][1]['speed'].copy()
         lidar_data = input_data['lidar'][1].copy()

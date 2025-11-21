@@ -45,6 +45,8 @@ python leaderboard/leaderboard/leaderboard_evaluator_local.py \
 Logs will be stored in the directory specified by `SAVE_PATH`.
 Visualization will be stored there too if an environmental variable `VISUALIZE=1` is supplied.
 
+`SAFETY=1` enables teh safety layer. Otherwise only the mission layer is running.
+
 ---
 
 ## Modifications
