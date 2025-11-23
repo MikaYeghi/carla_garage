@@ -1,7 +1,5 @@
 # Experimental Protocol
 
-For each route, perform the following actions. 
-
 ## Preparation 
 
 First, launch the simulator in _Terminal 1_: 
