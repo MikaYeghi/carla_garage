@@ -11,10 +11,10 @@ First, launch the simulator in _Terminal 1_:
 
 Second, in another terminal _Terminal 2_, run the following commands:
 ```
-# Activate the environment
+# 1. Activate the environment
 conda activate garage_2
 
-# Perform the standard CARLA Garage setup
+# 2. Perform the standard CARLA Garage setup
 export CARLA_ROOT=/path/to/CARLA/root
 export WORK_DIR=/path/to/carla_garage
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
@@ -22,18 +22,14 @@ export SCENARIO_RUNNER_ROOT=${WORK_DIR}/scenario_runner
 export LEADERBOARD_ROOT=${WORK_DIR}/leaderboard
 export PYTHONPATH="${CARLA_ROOT}/PythonAPI/carla/":"${SCENARIO_RUNNER_ROOT}":"${LEADERBOARD_ROOT}":${PYTHONPATH}
 
-# 2. Update PYTHONPATH --- we need this with the added Perception Simplex code
+# 3. Update PYTHONPATH --- we need this with the added Perception Simplex code
 export PYTHONPATH=$PYTHONPATH:$WORK_DIR/team_code 
 
-# 3. Set the save path
+# 4. Set the save path
 export SAVE_PATH=$WORK_DIR/results/DSN
 
-# 4. Set the config files directory path
-mkdir configs
+# 5. Set the config files directory path
 export CONFIGS_DIR=$WORK_DIR/configs
-
-# 5. Unzip the configs
-unzip <PATH_TO_CONFIGS_ZIP> -d $CONFIGS_DIR
 ```
 
 ## Running Experiments
