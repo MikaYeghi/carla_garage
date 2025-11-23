@@ -28,6 +28,9 @@ export SAVE_PATH=$WORK_DIR/results/DSN
 
 # 5. Set the config files directory path
 export CONFIGS_DIR=$WORK_DIR/configs
+
+# 6. Visualize on
+export VISUALIZE=1
 ```
 
 ## Running Experiments
