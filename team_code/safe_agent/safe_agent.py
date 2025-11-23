@@ -27,9 +27,12 @@ class SafeAgent(FaultySensorAgent):
         super().__init__(*args, **kwargs)
         
         # Initialize the safety layer
-        self.safety_layer = SafetyLayer()
+        self.safety_layer = SafetyLayer(
+            a_brake_max=7.0,
+        )
         self.safety_override = False
         self.safety_enabled = int(os.environ.get('SAFETY', 0)) == 1
+        self.emergency = False
 
         # Visualization config
         self.visualize = int(os.environ.get('VISUALIZE', 0)) == 1
@@ -65,13 +68,17 @@ class SafeAgent(FaultySensorAgent):
         # Implement the simplex logic
         control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed)
 
+        # Record emergency if there is a collision risk. In case of an emergency full stop is applied.
+        if not self.emergency and safety_override and any(collision_risks):
+            self.emergency = True
+
         # Safety Layer does not work for even steps. If it was `safety_override` last time -- keep applying it.
-        if self.step % 2 == 0 and self.safety_override:
+        if (self.step % 2 == 0 and self.safety_override) or self.emergency:
             control_final = self.safety_layer.override_control()
             safety_override = True
         
         # Convert the safety override into a CARLA VehicleControl object
-        if safety_override:
+        if safety_override or self.emergency:
             control_final = carla.VehicleControl(
                 steer=control_final['steer'],
                 brake=control_final['brake'],
