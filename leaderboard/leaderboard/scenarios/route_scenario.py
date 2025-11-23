@@ -132,9 +132,9 @@ class RouteScenario(BasicScenario):
         new_scenarios_config = []
         for scenario_number, scenario_config in enumerate(scenario_configs):
             trigger_point = scenario_config.trigger_points[0]
-            if not RouteParser.is_scenario_at_route(trigger_point, self.route):
-                print("WARNING: Ignoring scenario '{}' as it is too far from the route".format(scenario_config.name))
-                continue
+            # if not RouteParser.is_scenario_at_route(trigger_point, self.route):
+            #     print("WARNING: Ignoring scenario '{}' as it is too far from the route".format(scenario_config.name))
+            #     continue
 
             scenario_config.route_var_name = "ScenarioRouteNumber{}".format(scenario_number)
             new_scenarios_config.append(scenario_config)
