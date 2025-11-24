@@ -536,6 +536,10 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           pred_bounding_box = self.nets[i].convert_features_to_bb_metric(pred_bb_features)
         else:
           pred_bounding_box = None
+
+        # Save the BEV semantic map for the 0-th model
+        if i == 0:
+          self.pred_bev_semantic = pred_bev_semantic
       else:
         raise ValueError('The chosen vision backbone does not exist. The options are: transFuser, aim, bev_encoder')
 

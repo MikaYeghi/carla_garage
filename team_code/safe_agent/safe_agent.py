@@ -5,6 +5,7 @@ from typing import Dict
 from sensor_agent import SensorAgent
 from faulty_sensor_agent import FaultySensorAgent
 from perception_simplex.safety_layer import SafetyLayer
+from synergistic_simplex.safety_layer import SafetyLayerSS
 from perception_simplex.utils import visualize_bev, preprocess_lidar_data, preprocess_mission_layer_detections
 
 def save_runtime_data_to_file(save_dir: str, runtime_data: Dict):
@@ -26,7 +27,7 @@ class SafeAgent(FaultySensorAgent):
         super().__init__(*args, **kwargs)
         
         # Initialize the safety layer
-        self.safety_layer = SafetyLayer(
+        self.safety_layer = SafetyLayerSS(
             a_brake_max=7.0,
             d_margin=0.5
         )
@@ -39,6 +40,9 @@ class SafeAgent(FaultySensorAgent):
 
         # Visualization config
         self.visualize = int(os.environ.get('VISUALIZE', 0)) == 1
+
+        # BEV semantic map
+        self.pred_bev_semantic = None
 
         print(f"[SafeAgent] Initialized. Safety: {'enabled' if self.safety_enabled else 'disabled'}.")
 
@@ -54,6 +58,13 @@ class SafeAgent(FaultySensorAgent):
 
         # Extract mission layer control action
         control_mission = super().run_step(input_data, timestamp, sensors)
+
+        # BEV semantic map
+        if self.pred_bev_semantic is not None:
+            pred_bev_semantic = self.pred_bev_semantic
+            bev_map = pred_bev_semantic.squeeze().argmax(axis=0).clone().detach().cpu().numpy()
+        else:
+            pred_bev_semantic = None
 
         # Run only the mission layer if safety is disabled
         if not self.safety_enabled:
@@ -92,7 +103,7 @@ class SafeAgent(FaultySensorAgent):
         collision_risks, braking_area_box = self.safety_layer.assess_collision_risk(safety_layer_detections, speed, faulty_detections)
 
         # Implement the simplex logic
-        control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed)
+        control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed, pred_bev_semantic=pred_bev_semantic, safety_layer_detections=safety_layer_detections)
 
         # Record emergency if there is a collision risk. In case of an emergency full stop is applied.
         if not self.emergency and safety_override and any(collision_risks):
