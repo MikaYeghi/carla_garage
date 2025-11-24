@@ -1,26 +1,25 @@
 import os
 import carla
+import pickle
+from typing import Dict
 from sensor_agent import SensorAgent
 from faulty_sensor_agent import FaultySensorAgent
 from perception_simplex.safety_layer import SafetyLayer
 from perception_simplex.utils import visualize_bev, preprocess_lidar_data, preprocess_mission_layer_detections
 
-def save_run_data(frame_id, run_data):
-    import os, pickle
-    assert frame_id is not None
-    save_dir = "run_data/1-1_Obstacle_Lidar+Mission_Detections+Speed+Mission_Control"
+def save_runtime_data_to_file(save_dir: str, runtime_data: Dict):
+    assert "frame_id" in runtime_data.keys()
+    frame_id = runtime_data['frame_id']
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, f"frame-{frame_id}.pkl"), "wb") as handler:
-        pickle.dump(run_data, handler, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(runtime_data, handler, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Leaderboard function that selects the class used as agent.
 def get_entry_point():
   return 'SafeAgent'
 
-
 def strtobool(v):
   return str(v).lower() in ('yes', 'y', 'true', 't', '1', 'True')
-
 
 class SafeAgent(FaultySensorAgent):
     def __init__(self, *args, **kwargs):
@@ -35,16 +34,15 @@ class SafeAgent(FaultySensorAgent):
         self.safety_enabled = int(os.environ.get('SAFETY', 0)) == 1
         self.emergency = False
 
+        # Logging config
+        self.save_runtime_data = int(os.environ.get('SAVE_RUNTIME_DATA', 0)) == 1
+
         # Visualization config
         self.visualize = int(os.environ.get('VISUALIZE', 0)) == 1
 
         print(f"[SafeAgent] Initialized. Safety: {'enabled' if self.safety_enabled else 'disabled'}.")
 
     def run_step(self, input_data, timestamp, sensors=None):
-        # Run only the mission layer if safety is disabled
-        if not self.safety_enabled:
-            return super().run_step(input_data, timestamp, sensors)
-
         # Extract speed, lidar data and mission detections
         speed = input_data['speed'][1]['speed'].copy()
         lidar_data = input_data['lidar'][1].copy()
@@ -56,6 +54,33 @@ class SafeAgent(FaultySensorAgent):
 
         # Extract mission layer control action
         control_mission = super().run_step(input_data, timestamp, sensors)
+
+        # Run only the mission layer if safety is disabled
+        if not self.safety_enabled:
+            # Save the runtime data (ML layer only)
+            if self.save_runtime_data:
+                runtime_data = {
+                    "step": self.step,
+                    "frame_id": input_data.get('lidar')[0],
+                    "lidar_points": input_data.get('lidar')[1],
+                    "mission_layer_detections": mission_layer_detections,
+                    "safety_override": False,
+                    "safety_enabled": self.safety_enabled,
+                    "emergency": False,
+                    "speed": speed,
+                    "control_mission": {
+                        "throttle": control_mission.throttle,
+                        "steer": control_mission.steer,
+                        "brake": control_mission.brake,
+                        "hand_brake": control_mission.hand_brake, 
+                        "reverse": control_mission.reverse,
+                        "manual_gear_shift": control_mission.manual_gear_shift,
+                        "gear": control_mission.gear                
+                    }
+                }
+                save_runtime_data_to_file(os.path.join(self.save_path, "runtime_data"), runtime_data)
+
+            return control_mission
 
         # Detect obstacles using the safety layer
         safety_layer_detections = self.safety_layer.detect_obstacles(lidar_data)
@@ -87,22 +112,41 @@ class SafeAgent(FaultySensorAgent):
             )
         self.safety_override = safety_override
 
-        # Save the run data
-        run_data = {
-            "lidar_points": input_data.get('lidar')[1],
-            "mission_detections": mission_layer_detections,
-            "speed": speed,
-            "control_mission": {
-                "throttle": control_mission.throttle,
-                "steer": control_mission.steer,
-                "brake": control_mission.brake,
-                "hand_brake": control_mission.hand_brake, 
-                "reverse": control_mission.reverse,
-                "manual_gear_shift": control_mission.manual_gear_shift,
-                "gear": control_mission.gear                
+        # Save the runtime data (ML + Safety layers)
+        if self.save_runtime_data:
+            runtime_data = {
+                "step": self.step,
+                "frame_id": input_data.get('lidar')[0],
+                "lidar_points": input_data.get('lidar')[1],
+                "mission_layer_detections": mission_layer_detections,
+                "safety_layer_detections": safety_layer_detections,
+                "faulty_detections": faulty_detections,
+                "collision_risks": collision_risks,
+                "braking_area_box": braking_area_box,
+                "safety_override": safety_override,
+                "safety_enabled": self.safety_enabled,
+                "emergency": self.emergency,
+                "speed": speed,
+                "control_mission": {
+                    "throttle": control_mission.throttle,
+                    "steer": control_mission.steer,
+                    "brake": control_mission.brake,
+                    "hand_brake": control_mission.hand_brake, 
+                    "reverse": control_mission.reverse,
+                    "manual_gear_shift": control_mission.manual_gear_shift,
+                    "gear": control_mission.gear                
+                },
+                "control_final": {
+                    "throttle": control_final.throttle,
+                    "steer": control_final.steer,
+                    "brake": control_final.brake,
+                    "hand_brake": control_final.hand_brake, 
+                    "reverse": control_final.reverse,
+                    "manual_gear_shift": control_final.manual_gear_shift,
+                    "gear": control_final.gear 
+                }
             }
-        }
-        # save_run_data(input_data.get('lidar')[0], run_data)
+            save_runtime_data_to_file(os.path.join(self.save_path, "runtime_data"), runtime_data)
 
         # Visualize from safety layer's perspective
         if self.visualize and self.save_path:
