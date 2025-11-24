@@ -31,7 +31,7 @@ class SafeAgent(FaultySensorAgent):
             a_brake_max=7.0,
             d_margin=0.5
         )
-        self.safety_override = False
+        self.safety_override = 0
         self.safety_enabled = int(os.environ.get('SAFETY', 0)) == 1
         self.emergency = False
 
@@ -62,7 +62,6 @@ class SafeAgent(FaultySensorAgent):
         # BEV semantic map
         if self.pred_bev_semantic is not None:
             pred_bev_semantic = self.pred_bev_semantic
-            bev_map = pred_bev_semantic.squeeze().argmax(axis=0).clone().detach().cpu().numpy()
         else:
             pred_bev_semantic = None
 
@@ -78,6 +77,7 @@ class SafeAgent(FaultySensorAgent):
                     "safety_override": False,
                     "safety_enabled": self.safety_enabled,
                     "emergency": False,
+                    "pred_bev_semantic": pred_bev_semantic,
                     "speed": speed,
                     "control_mission": {
                         "throttle": control_mission.throttle,
@@ -106,16 +106,16 @@ class SafeAgent(FaultySensorAgent):
         control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed, pred_bev_semantic=pred_bev_semantic, safety_layer_detections=safety_layer_detections)
 
         # Record emergency if there is a collision risk. In case of an emergency full stop is applied.
-        if not self.emergency and safety_override and any(collision_risks):
+        if not self.emergency and safety_override == 2 and any(collision_risks):
             self.emergency = True
 
         # Safety Layer does not work for even steps. If it was `safety_override` last time -- keep applying it.
-        if (self.step % 2 == 0 and self.safety_override) or self.emergency:
+        if (self.step % 2 == 0 and self.safety_override == 2) or self.emergency:
             control_final = self.safety_layer.override_control()
-            safety_override = True
+            safety_override = 2
         
         # Convert the safety override into a CARLA VehicleControl object
-        if safety_override or self.emergency:
+        if safety_override > 0 or self.emergency:
             control_final = carla.VehicleControl(
                 steer=control_final['steer'],
                 brake=control_final['brake'],
@@ -137,6 +137,7 @@ class SafeAgent(FaultySensorAgent):
                 "safety_override": safety_override,
                 "safety_enabled": self.safety_enabled,
                 "emergency": self.emergency,
+                "pred_bev_semantic": pred_bev_semantic,
                 "speed": speed,
                 "control_mission": {
                     "throttle": control_mission.throttle,
@@ -175,7 +176,7 @@ class SafeAgent(FaultySensorAgent):
                 braking_area_box=braking_area_box
             )
 
-        print(f"Speed: {round(speed, 2)} m/s. Brake: {safety_override}.")
+        print(f"Speed: {round(speed, 2)} m/s. Safety override: {safety_override}. Emergency: {self.emergency}.")
 
         return control_final
     

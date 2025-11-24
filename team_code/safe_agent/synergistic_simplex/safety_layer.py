@@ -104,29 +104,28 @@ class SafetyLayerSS(SafetyLayerPS):
                 #     fig, ax = plt.subplots()
                 #     px_min, py_min = meters_to_pixel(x_min, y_min)
                 #     print(px_min, py_min)
-                #     rect = patches.Rectangle(
-                #         (px_min, py_min), 
-                #         (x_max - x_min) * 4,
-                #         (y_max - y_min) * 4,
-                #         edgecolor='red',
-                #         facecolor='none',
-                #         linewidth=2
-                #     )
+                #     rect = patches.Rectangle((px_min, py_min), (x_max - x_min) * 4, (y_max - y_min) * 4, edgecolor='red', facecolor='none', linewidth=2)
                 #     ax.imshow(labeled_lanes_aligned / labeled_lanes_aligned.max(), cmap='gray')
                 #     ax.add_patch(rect)
                 #     plt.show()
-                #     import pdb; pdb.set_trace()
 
         # Extract the maximum response_id
-        max_response_id = max(response_ids)
+        if len(response_ids) > 0:
+            max_response_id = max(response_ids)
+        else:
+            max_response_id = 0
 
         # Assign the corresponding override
         if max_response_id == 2:
-            return self.override_control(), True
+            return self.override_control(), 2
         elif max_response_id == 1:
-            return self.soft_override_control(), True
+            return self.soft_override_control(), 1
         else:
-            return control_mission, False # return mission control, no safety override
+            control_final, safety_override = self.limit_velocity(control_mission, speed)
+            if safety_override:
+                return control_final, 2
+            else:
+                return control_mission, 0 # return mission control, no safety override
 
     def get_ego_vehicle_lane(self, labeled_lanes):
         ego_y = labeled_lanes.shape[0] // 2
