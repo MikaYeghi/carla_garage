@@ -57,8 +57,7 @@ class SafetyLayerSS(SafetyLayerPS):
                       vehicles_id=9
         ) -> tuple[Dict, bool]:
         if self.fault_handler_type == "PS":
-            # TODO: change the safety_override to an integer code
-            return super().fault_handler(control_mission, faulty_detections, collision_risks, speed)
+            return self.fault_handler_PS(control_mission, faulty_detections, collision_risks, speed)
         elif self.fault_handler_type == "M2S":
             return self.fault_handler_M2S(
                 control_mission,
@@ -76,6 +75,31 @@ class SafetyLayerSS(SafetyLayerPS):
             raise NotImplementedError
         else:
             raise ValueError(f"Invalid fault handler type {self.fault_handler_type}. Expected one of: PS, M2S, S2M, SS.")
+
+    def fault_handler_PS(self, control_mission, faulty_detections, collision_risks, speed) -> tuple[Dict, bool]:
+        """
+        Implement the simplex logic.
+
+        Args:
+            control_mission (dict): Control commands from the mission system.
+            faulty_detections (List[bool]): List of faulty detections. True means the detection is missed by the mission layer.
+            collision_risks (List[bool]): List of collision risks with each obstacle detected by the safety layer. True if there is a collision risk.
+            speed (float): Current speed of the vehicle.
+
+        Returns:
+            dict: Modified control commands with limited velocity.
+        """
+        # Check if there is a risk of collision with any of the faulty obstacles
+        for is_faulty, collision_risk in zip(faulty_detections, collision_risks):
+            if is_faulty and collision_risk:
+                return self.override_control(), 3
+        
+        # Otherwise, limit velocity if needed
+        control_final, safety_override = self.limit_velocity(control_mission, speed)
+        if safety_override:
+            return control_final, 2
+        else:
+            return control_final, 0
 
     def fault_handler_M2S(self, 
                       control_mission, 
@@ -102,7 +126,7 @@ class SafetyLayerSS(SafetyLayerPS):
         # Use the PS fault handler if no BEV semantic map is provided
         if pred_bev_semantic is None:
             print("WARNING: No BEV semantic map provided, rolling back to the PS Fault Handler.")
-            return super().fault_handler(control_mission, faulty_detections, collision_risks, speed)
+            return self.fault_handler_PS(control_mission, faulty_detections, collision_risks, speed)
         
         # Pre-process the BEV semantic map
         bev_semantic_map = pred_bev_semantic.squeeze().argmax(axis=0).clone().detach().cpu().numpy()
