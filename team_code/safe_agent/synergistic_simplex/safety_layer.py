@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from scipy import ndimage
 from typing import Dict
@@ -30,7 +31,53 @@ class SafetyLayerSS(SafetyLayerPS):
     def __init__(self, return_half = True, left_fov = False, threshold_deg = 10, min_obs_height = 0.2, max_dist_lidar = 85, angle_clustering_thresh = 5, min_points_cluster = 2, iou_thresh = 0.75, clustering_method = "original", a_brake_max = 7, latency_max = 0.01, d_margin = 0.1, dt = 0.1, ego_length = 5.02, ego_width = 2.13):
         super().__init__(return_half, left_fov, threshold_deg, min_obs_height, max_dist_lidar, angle_clustering_thresh, min_points_cluster, iou_thresh, clustering_method, a_brake_max, latency_max, d_margin, dt, ego_length, ego_width)
 
+        # TODO: implement selection logic between the PS, M2S, S2M, SS fault handlers
+        self.fault_handler_type = self.get_fault_handler()
+        print(f"Fault Handler: {self.fault_handler_type}")
+
+    def get_fault_handler(self):
+        valid_handlers = {"PS", "M2S", "S2M", "SS"}
+
+        fault_handler_env = os.environ.get("FAULT_HANDLER", "").upper()
+
+        if fault_handler_env in valid_handlers:
+            return fault_handler_env
+        
+        # Fallback to PS
+        return "PS"
+
     def fault_handler(self, 
+                      control_mission, 
+                      faulty_detections, 
+                      collision_risks, 
+                      speed,
+                      pred_bev_semantic=None,
+                      safety_layer_detections=[],
+                      road_id=1,
+                      vehicles_id=9
+        ) -> tuple[Dict, bool]:
+        if self.fault_handler_type == "PS":
+            # TODO: change the safety_override to an integer code
+            return super().fault_handler(control_mission, faulty_detections, collision_risks, speed)
+        elif self.fault_handler_type == "M2S":
+            return self.fault_handler_M2S(
+                control_mission,
+                faulty_detections,
+                collision_risks,
+                speed,
+                pred_bev_semantic=pred_bev_semantic,
+                safety_layer_detections=safety_layer_detections,
+                road_id=road_id,
+                vehicles_id=vehicles_id
+            )
+        elif self.fault_handler_type == "S2M":
+            raise NotImplementedError
+        elif self.fault_handler_type == "SS":
+            raise NotImplementedError
+        else:
+            raise ValueError(f"Invalid fault handler type {self.fault_handler_type}. Expected one of: PS, M2S, S2M, SS.")
+
+    def fault_handler_M2S(self, 
                       control_mission, 
                       faulty_detections, 
                       collision_risks, 
@@ -62,7 +109,7 @@ class SafetyLayerSS(SafetyLayerPS):
 
         # Extract the lanes as the road labels
         lanes_map = bev_semantic_map == road_id
-        vehicles_map = bev_semantic_map == vehicles_id
+        # vehicles_map = bev_semantic_map == vehicles_id
         # lanes_map = lanes_map + vehicles_map # consider vehicles as part of lanes for connectivity
 
         # Identify each lane as a blob that does not touch other blobs
@@ -77,7 +124,7 @@ class SafetyLayerSS(SafetyLayerPS):
         # Check where the faulty and collision risk obstacles are located and respond respectively. Override levels:
         # 0: no override needed, return limit_velocity (Zone 3)
         # 1: release throttle, no braking (Zone 2)
-        # 2: brake (Zone 1)
+        # 3: brake (Zone 1)
         response_ids = [0 for _ in range(len(collision_risks))]
         for i, (is_faulty, is_risky, obstacle) in enumerate(zip(faulty_detections, collision_risks, safety_layer_detections)):
             if is_faulty and is_risky:
@@ -94,21 +141,6 @@ class SafetyLayerSS(SafetyLayerPS):
                 # Assign the response ID
                 response_ids[i] = response_id
 
-                # # DEBUG: Plot
-                # x_min, y_min, _ = obstacle['bbox_min']
-                # x_max, y_max, _ = obstacle['bbox_max']
-                # cx, cy = (x_min + x_max) / 2, (y_min + y_max) / 2
-                # if -32 <= cx <= 32 and -32 <= cy <= 32:
-                #     from matplotlib import pyplot as plt
-                #     from matplotlib import patches
-                #     fig, ax = plt.subplots()
-                #     px_min, py_min = meters_to_pixel(x_min, y_min)
-                #     print(px_min, py_min)
-                #     rect = patches.Rectangle((px_min, py_min), (x_max - x_min) * 4, (y_max - y_min) * 4, edgecolor='red', facecolor='none', linewidth=2)
-                #     ax.imshow(labeled_lanes_aligned / labeled_lanes_aligned.max(), cmap='gray')
-                #     ax.add_patch(rect)
-                #     plt.show()
-
         # Extract the maximum response_id
         if len(response_ids) > 0:
             max_response_id = max(response_ids)
@@ -116,6 +148,10 @@ class SafetyLayerSS(SafetyLayerPS):
             max_response_id = 0
 
         # Assign the override
+        # 3: emergency braking
+        # 2: velocity control braking (no emergency)
+        # 1: release throttle (soft emergency)
+        # 0: no override
         if max_response_id == 3:
             return self.override_control(), 3
         else:
@@ -126,18 +162,6 @@ class SafetyLayerSS(SafetyLayerPS):
                 return self.soft_override_control(), 1
             else:
                 return control_mission, 0
-
-        # Assign the corresponding override
-        if max_response_id == 3:
-            return self.override_control(), 3
-        elif max_response_id == 1:
-            return self.soft_override_control(), 1
-        else:
-            control_final, safety_override = self.limit_velocity(control_mission, speed)
-            if safety_override:
-                return control_final, 2
-            else:
-                return control_mission, 0 # return mission control, no safety override
 
     def get_ego_vehicle_lane(self, labeled_lanes):
         ego_y = labeled_lanes.shape[0] // 2

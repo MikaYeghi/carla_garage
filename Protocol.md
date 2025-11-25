@@ -34,6 +34,14 @@ export VISUALIZE=1
 export SAVE_RUNTIME_DATA=1
 ```
 
+## Selecting Model
+
+To select the SS model (one of PS, M2S, S2M, SS) set the following environmental variable to an appropriate value:
+```
+# One of [PS, M2S, S2M, SS]
+export FAULT_HANDLER=M2S 
+```
+
 ## Running Experiments
 
 For each route (e.g. for route 01 of Scenario 1), perform the following steps:
