@@ -28,8 +28,9 @@ class SafeAgent(FaultySensorAgent):
         
         # Initialize the safety layer
         self.safety_layer = SafetyLayerSS(
-            a_brake_max=7.0,
-            d_margin=0.5
+            a_brake_max=5.5,
+            d_margin=0.5,
+            iou_thresh=2.0
         )
         self.safety_override = 0
         self.safety_enabled = int(os.environ.get('SAFETY', 0)) == 1
