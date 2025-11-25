@@ -199,6 +199,12 @@ class SafeAgent(FaultySensorAgent):
 
         print(f"Speed: {round(speed, 2)} m/s. Safety override: {safety_override}. Emergency: {self.emergency}.")
 
+        # Stop the simulation if it's been stalled due to an emergency
+        if speed < 0.1 and self.emergency:
+            # raise KeyboardInterrupt
+            import signal
+            os.kill(os.getpid(), signal.SIGINT)
+
         return control_final
     
     def get_mission_detections(self):
