@@ -103,23 +103,43 @@ class SafeAgent(FaultySensorAgent):
         collision_risks, braking_area_box = self.safety_layer.assess_collision_risk(safety_layer_detections, speed, faulty_detections)
 
         # Implement the simplex logic
+        # 3: emergency braking
+        # 2: velocity control braking
+        # 1: throttle release (soft emergency)
+        # 0: no override
         control_final, safety_override = self.safety_layer.fault_handler(control_mission, faulty_detections, collision_risks, speed, pred_bev_semantic=pred_bev_semantic, safety_layer_detections=safety_layer_detections)
 
         # Record emergency if there is a collision risk. In case of an emergency full stop is applied.
-        if not self.emergency and safety_override == 2 and any(collision_risks):
+        if not self.emergency and safety_override == 3:
             self.emergency = True
 
         # Safety Layer does not work for even steps. If it was `safety_override` last time -- keep applying it.
-        if (self.step % 2 == 0 and self.safety_override == 2) or self.emergency:
-            control_final = self.safety_layer.override_control()
-            safety_override = 2
+        if self.step % 2 == 0:
+            if self.safety_override == 2 or self.safety_override == 3:
+                control_final = self.safety_layer.override_control()
+                safety_override = self.safety_override
+            elif self.emergency:
+                control_final = self.safety_layer.override_control()
+                safety_override = 3
+            elif self.safety_override == 1:
+                control_final = self.safety_layer.soft_override_control()
+                safety_override = 1
+        # if (self.step % 2 == 0 and self.safety_override == 2) or self.emergency:
+        #     control_final = self.safety_layer.override_control()
+        #     safety_override = 2
         
         # Convert the safety override into a CARLA VehicleControl object
-        if safety_override > 0 or self.emergency:
+        if safety_override > 1 or self.emergency:
             control_final = carla.VehicleControl(
-                steer=control_final['steer'],
-                brake=control_final['brake'],
-                throttle=control_final['throttle']
+                steer=0,
+                brake=1,
+                throttle=0
+            )
+        elif safety_override == 1:
+            control_final = carla.VehicleControl(
+                steer=0,
+                brake=0,
+                throttle=0
             )
         self.safety_override = safety_override
 

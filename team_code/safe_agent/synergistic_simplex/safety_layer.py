@@ -17,12 +17,12 @@ def obstacle_overlapping_lanes(obstacle, labeled_lanes):
     px_min, py_max = meters_to_pixel(xmin, ymin)
     px_max, py_min = meters_to_pixel(xmax, ymax)
 
-    px_min = np.clip(px_min, 0, 255)
-    px_max = np.clip(px_max, 0, 255)
-    py_min = np.clip(py_min, 0, 255)
-    py_max = np.clip(py_max, 0, 255)
+    px_min = np.clip(px_min, 0, 256)
+    px_max = np.clip(px_max, 0, 256)
+    py_min = np.clip(py_min, 0, 256)
+    py_max = np.clip(py_max, 0, 256)
 
-    region = labeled_lanes[py_min:py_max + 1, px_min:px_max + 1]
+    region = labeled_lanes[py_min:py_max, px_min:px_max]
     labels = np.unique(region)
     return labels
 
@@ -63,7 +63,7 @@ class SafetyLayerSS(SafetyLayerPS):
         # Extract the lanes as the road labels
         lanes_map = bev_semantic_map == road_id
         vehicles_map = bev_semantic_map == vehicles_id
-        lanes_map = lanes_map + vehicles_map # consider vehicles as part of lanes for connectivity
+        # lanes_map = lanes_map + vehicles_map # consider vehicles as part of lanes for connectivity
 
         # Identify each lane as a blob that does not touch other blobs
         labeled_lanes, num_labels = ndimage.label(lanes_map)
@@ -85,7 +85,7 @@ class SafetyLayerSS(SafetyLayerPS):
                 
                 # Check which zone the obstacle falls into
                 if any(overlap_ids == ego_vehicle_lane_id): # Zone 1: brake
-                    response_id = 2
+                    response_id = 3
                 elif any(overlap_ids != 0):                 # Zone 2: release the throttle, no braking
                     response_id = 1
                 else:                                       # Zone 3: no override action
@@ -115,9 +115,21 @@ class SafetyLayerSS(SafetyLayerPS):
         else:
             max_response_id = 0
 
+        # Assign the override
+        if max_response_id == 3:
+            return self.override_control(), 3
+        else:
+            control_final, safety_override = self.limit_velocity(control_mission, speed)
+            if safety_override:
+                return control_final, 2
+            elif max_response_id == 1:
+                return self.soft_override_control(), 1
+            else:
+                return control_mission, 0
+
         # Assign the corresponding override
-        if max_response_id == 2:
-            return self.override_control(), 2
+        if max_response_id == 3:
+            return self.override_control(), 3
         elif max_response_id == 1:
             return self.soft_override_control(), 1
         else:
