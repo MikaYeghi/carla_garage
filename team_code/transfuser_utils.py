@@ -447,6 +447,8 @@ def iou_bbs(bb1, bb2):
   intersection_area = a.intersection(b).area
   union_area = a.union(b).area
   iou = intersection_area / union_area
+  if union_area == 0:
+    return 0.
   return iou
 
 

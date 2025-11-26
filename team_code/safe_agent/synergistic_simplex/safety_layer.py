@@ -54,7 +54,11 @@ class SafetyLayerSS(SafetyLayerPS):
                       pred_bev_semantic=None,
                       safety_layer_detections=[],
                       road_id=1,
-                      vehicles_id=9
+                      vehicles_id=9,
+                      mission_layer_run_step=None,
+                      input_data=None,
+                      timestamp=None,
+                      agent=None
         ) -> tuple[Dict, bool]:
         if self.fault_handler_type == "PS":
             return self.fault_handler_PS(control_mission, faulty_detections, collision_risks, speed)
@@ -75,7 +79,10 @@ class SafetyLayerSS(SafetyLayerPS):
                 faulty_detections,
                 collision_risks,
                 speed,
-                safety_layer_detections=safety_layer_detections
+                safety_layer_detections=safety_layer_detections,
+                input_data=input_data,
+                timestamp=timestamp,
+                agent=agent
             )
         elif self.fault_handler_type == "SS":
             return self.fault_handler_SS(
@@ -204,9 +211,49 @@ class SafetyLayerSS(SafetyLayerPS):
                           faulty_detections, 
                           collision_risks, 
                           speed, 
-                          safety_layer_detections=[]
+                          safety_layer_detections=[],
+                          input_data=None,
+                          timestamp=None,
+                          agent=None
         ):
-        raise NotImplementedError
+        def preprocess_safety_layer_detections(safety_layer_detections):
+            preprocessed_list = []
+            for sd in safety_layer_detections:
+                x_min, y_min, _ = sd['bbox_min']
+                x_max, y_max, _ = sd['bbox_max']
+                cx = (x_min + x_max) / 2
+                cy = (y_min + y_max) / 2
+                w = x_max - x_min
+                h = y_max - y_min
+                yaw = 0.
+                sd = [cx, cy, w, h, yaw]
+                preprocessed_list.append(np.array([-sd[1], -sd[0], sd[3] / 2, sd[2] / 2, -sd[4], 0., 0., 0., 1.]))
+            return preprocessed_list
+            
+        if input_data is None or timestamp is None or agent is None:
+            print(f"Not all components have been provided, rolling back to the PS fault handler.")
+            return self.fault_handler_PS(control_mission, faulty_detections, collision_risks, speed) 
+
+        # Check if there is a risk of collision with any of the faulty obstacles
+        for is_faulty, collision_risk in zip(faulty_detections, collision_risks):
+            if is_faulty and collision_risk:
+                return self.override_control(), 3        
+        
+        # Feed all faulty actions back to the mission layer
+        additional_detections = preprocess_safety_layer_detections([safety_layer_detection for safety_layer_detection, is_faulty in zip(safety_layer_detections, faulty_detections) if is_faulty])
+        if len(additional_detections) > 0:
+            print(f"Injecting {len(additional_detections)} detections.")
+            control_mission = agent._run_step(input_data, timestamp, safety_layer_detections=additional_detections)
+            
+        # Limit velocity if needed
+        control_final, safety_override = self.limit_velocity(control_mission, speed)
+        if safety_override:
+            return control_final, 2
+        else:
+            return control_final, 0
+        
+        # print("WARNING: Rolling back to the PS fault handler.")
+        # return self.fault_handler_PS(control_mission, faulty_detections, collision_risks, speed)
     
     def fault_handler_SS(self,
                          control_mission,
