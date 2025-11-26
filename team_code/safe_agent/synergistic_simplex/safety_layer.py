@@ -33,7 +33,7 @@ class SafetyLayerSS(SafetyLayerPS):
 
         # TODO: implement selection logic between the PS, M2S, S2M, SS fault handlers
         self.fault_handler_type = self.get_fault_handler()
-        print(f"Fault Handler: {self.fault_handler_type}")
+        print(f"Fault Handler: {self.fault_handler_type}.")
 
     def get_fault_handler(self):
         valid_handlers = {"PS", "M2S", "S2M", "SS"}
@@ -70,9 +70,21 @@ class SafetyLayerSS(SafetyLayerPS):
                 vehicles_id=vehicles_id
             )
         elif self.fault_handler_type == "S2M":
-            raise NotImplementedError
+            return self.fault_handler_S2M(
+                control_mission,
+                faulty_detections,
+                collision_risks,
+                speed,
+                safety_layer_detections=safety_layer_detections
+            )
         elif self.fault_handler_type == "SS":
-            raise NotImplementedError
+            return self.fault_handler_SS(
+                control_mission,
+                faulty_detections,
+                collision_risks,
+                speed,
+                safety_layer_detections=safety_layer_detections
+            )
         else:
             raise ValueError(f"Invalid fault handler type {self.fault_handler_type}. Expected one of: PS, M2S, S2M, SS.")
 
@@ -186,6 +198,24 @@ class SafetyLayerSS(SafetyLayerPS):
                 return self.soft_override_control(), 1
             else:
                 return control_mission, 0
+
+    def fault_handler_S2M(self, 
+                          control_mission, 
+                          faulty_detections, 
+                          collision_risks, 
+                          speed, 
+                          safety_layer_detections=[]
+        ):
+        raise NotImplementedError
+    
+    def fault_handler_SS(self,
+                         control_mission,
+                         faulty_detections,
+                         collision_risks,
+                         speed,
+                         safety_layer_detections=[]
+        ):
+        raise NotImplementedError
 
     def get_ego_vehicle_lane(self, labeled_lanes):
         ego_y = labeled_lanes.shape[0] // 2

@@ -72,4 +72,12 @@ For each route (e.g. for route 01 of Scenario 1), perform the following steps:
         ```
     2. Record the values of the resulting metrics: `Game Time` and `CollisionTest`. Record the `Experiment ID` of this run.
     3. Put the recorded values (both metrics and `Experiment ID`) in the [Experiments spreadsheet](https://uillinoisedu-my.sharepoint.com/:x:/r/personal/myeghiaz_illinois_edu/Documents/Conferences/DSN%202026/Experiments.xlsx?d=w791ac1b6df334241924786752d55a9c9&csf=1&web=1&e=srJrjp).
-4. Repeat the steps above for the next route (e.g. route 02).
+4. **Mission-to-Safety (M2S) Run**
+    1. Run in the M2S setting. Note that fault handler changes to `FAULT_HANDLER=1`.
+    ```
+    FAULT_HANDLER=M2S REPLAY_ID=<REPLAY_ID> SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
+
+    # For example
+    FAULT_HANDLER=M2S REPLAY_ID=01_route0_11_22_04_35_51 SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
+    ```
+5. Repeat the steps above for the next route (e.g. route 02).
