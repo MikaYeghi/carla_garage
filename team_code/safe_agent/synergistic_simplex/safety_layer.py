@@ -90,7 +90,13 @@ class SafetyLayerSS(SafetyLayerPS):
                 faulty_detections,
                 collision_risks,
                 speed,
-                safety_layer_detections=safety_layer_detections
+                safety_layer_detections=safety_layer_detections,
+                input_data=input_data,
+                timestamp=timestamp,
+                agent=agent,
+                pred_bev_semantic=pred_bev_semantic,
+                road_id=road_id,
+                vehicles_id=vehicles_id
             )
         else:
             raise ValueError(f"Invalid fault handler type {self.fault_handler_type}. Expected one of: PS, M2S, S2M, SS.")
@@ -214,7 +220,7 @@ class SafetyLayerSS(SafetyLayerPS):
                           safety_layer_detections=[],
                           input_data=None,
                           timestamp=None,
-                          agent=None
+                          agent=None,
         ):
         def preprocess_safety_layer_detections(safety_layer_detections):
             preprocessed_list = []
@@ -260,9 +266,42 @@ class SafetyLayerSS(SafetyLayerPS):
                          faulty_detections,
                          collision_risks,
                          speed,
-                         safety_layer_detections=[]
+                         safety_layer_detections=[],
+                         input_data=None,
+                         timestamp=None,
+                         agent=None,
+                         pred_bev_semantic=None,
+                         road_id=1,
+                         vehicles_id=9                         
         ):
-        raise NotImplementedError
+        # Obtain the output of the S2M fault handler
+        control_final_s2m, safety_override_s2m = self.fault_handler_S2M(control_mission, 
+                                                                    faulty_detections, 
+                                                                    collision_risks, 
+                                                                    speed, 
+                                                                    safety_layer_detections=safety_layer_detections,
+                                                                    input_data=input_data,
+                                                                    timestamp=timestamp,
+                                                                    agent=agent)
+        
+        # Obtain the output of the M2S fault handler
+        control_final_m2s, safety_override_m2s = self.fault_handler_M2S(control_mission, 
+                                                                    faulty_detections, 
+                                                                    collision_risks, 
+                                                                    speed, 
+                                                                    pred_bev_semantic=pred_bev_semantic, 
+                                                                    safety_layer_detections=safety_layer_detections, 
+                                                                    road_id=road_id, 
+                                                                    vehicles_id=vehicles_id)
+        
+        # If it is safety override 1, then M2S is aware of the collision risk, but it is using lane information to avoid a conservative response
+        if safety_override_m2s == 1:
+            return control_final_m2s, safety_override_m2s
+        else:
+            if safety_override_m2s >= safety_override_s2m:
+                return control_final_m2s, safety_override_m2s
+            else:
+                return control_final_s2m, safety_override_s2m
 
     def get_ego_vehicle_lane(self, labeled_lanes):
         ego_y = labeled_lanes.shape[0] // 2
