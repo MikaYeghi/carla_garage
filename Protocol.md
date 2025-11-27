@@ -34,13 +34,15 @@ export VISUALIZE=1
 export SAVE_RUNTIME_DATA=1
 ```
 
-## Selecting Model
+## Selecting Safety Model
 
 To select the SS model (one of PS, M2S, S2M, SS) set the following environmental variable to an appropriate value:
 ```
 # One of [PS, M2S, S2M, SS]
 export FAULT_HANDLER=M2S 
 ```
+
+By default `FAULT_HANDLER=PS`.
 
 ## Running Experiments
 
@@ -73,11 +75,27 @@ For each route (e.g. for route 01 of Scenario 1), perform the following steps:
     2. Record the values of the resulting metrics: `Game Time` and `CollisionTest`. Record the `Experiment ID` of this run.
     3. Put the recorded values (both metrics and `Experiment ID`) in the [Experiments spreadsheet](https://uillinoisedu-my.sharepoint.com/:x:/r/personal/myeghiaz_illinois_edu/Documents/Conferences/DSN%202026/Experiments.xlsx?d=w791ac1b6df334241924786752d55a9c9&csf=1&web=1&e=srJrjp).
 4. **Mission-to-Safety (M2S) Run**
-    1. Run in the M2S setting. Note that fault handler changes to `FAULT_HANDLER=1`.
+    1. Run in the M2S setting. Note that fault handler changes to `FAULT_HANDLER=M2S`.
     ```
     FAULT_HANDLER=M2S REPLAY_ID=<REPLAY_ID> SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
 
     # For example
     FAULT_HANDLER=M2S REPLAY_ID=01_route0_11_22_04_35_51 SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
     ```
-5. Repeat the steps above for the next route (e.g. route 02).
+5. **Safety-to-Mission (S2M) Run**
+    1. Run in the S2M setting. Note that fault handler changes to `FAULT_HANDLER=S2M`.
+    ```
+    FAULT_HANDLER=S2M REPLAY_ID=<REPLAY_ID> SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
+
+    # For example
+    FAULT_HANDLER=S2M REPLAY_ID=01_route0_11_22_04_35_51 SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
+    ```
+6. **Synergistic Simplex Run**
+    1. Run in the SS setting. Note that fault handler changes to `FAULT_HANDLER=SS`.
+    ```
+    FAULT_HANDLER=SS REPLAY_ID=<REPLAY_ID> SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
+
+    # For example
+    FAULT_HANDLER=SS REPLAY_ID=01_route0_11_22_04_35_51 SAFETY=1 python leaderboard/leaderboard/leaderboard_evaluator_local.py --agent-config model_ckpt/pretrained_models/all_towns/ --agent team_code/safe_agent/safe_agent.py --routes $CONFIGS_DIR/S1/01.xml
+    ```
+7. Repeat the steps above for the next route (e.g. route 02).

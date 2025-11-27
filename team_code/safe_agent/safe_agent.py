@@ -75,7 +75,6 @@ class SafeAgent(FaultySensorAgent):
         mission_layer_detections = preprocess_mission_layer_detections(mission_layer_detections)
         
         # Save lidar_data for odd frames, "predict" for even frames
-        print(f"Step: {self.step}. Y_min: {lidar_data[:, 1].min()}")
         if self.step % 2 == 0:
             self.speed_last_custom = speed.copy()
             self.lidar_last_custom = lidar_data.copy()
