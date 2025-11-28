@@ -46,6 +46,9 @@ class SafetyLayerSS(SafetyLayerPS):
         # Fallback to PS
         return "PS"
 
+    def get_fault_handler_type(self):
+        return self.fault_handler_type
+
     def fault_handler(self, 
                       control_mission, 
                       faulty_detections, 
@@ -274,15 +277,15 @@ class SafetyLayerSS(SafetyLayerPS):
                          road_id=1,
                          vehicles_id=9                         
         ):
-        # Obtain the output of the S2M fault handler
-        control_final_s2m, safety_override_s2m = self.fault_handler_S2M(control_mission, 
-                                                                    faulty_detections, 
-                                                                    collision_risks, 
-                                                                    speed, 
-                                                                    safety_layer_detections=safety_layer_detections,
-                                                                    input_data=input_data,
-                                                                    timestamp=timestamp,
-                                                                    agent=agent)
+        # # Obtain the output of the S2M fault handler
+        # control_final_s2m, safety_override_s2m = self.fault_handler_S2M(control_mission, 
+        #                                                             faulty_detections, 
+        #                                                             collision_risks, 
+        #                                                             speed, 
+        #                                                             safety_layer_detections=safety_layer_detections,
+        #                                                             input_data=input_data,
+        #                                                             timestamp=timestamp,
+        #                                                             agent=agent)
         
         # Obtain the output of the M2S fault handler
         control_final_m2s, safety_override_m2s = self.fault_handler_M2S(control_mission, 
@@ -293,7 +296,11 @@ class SafetyLayerSS(SafetyLayerPS):
                                                                     safety_layer_detections=safety_layer_detections, 
                                                                     road_id=road_id, 
                                                                     vehicles_id=vehicles_id)
-        
+         
+        return control_final_m2s, safety_override_m2s
+    
+        # NOTE: we need to introduce a response matrix to choose the response of either M2S or S2M
+         
         # If it is safety override 1, then M2S is aware of the collision risk, but it is using lane information to avoid a conservative response
         if safety_override_m2s == 1:
             return control_final_m2s, safety_override_m2s

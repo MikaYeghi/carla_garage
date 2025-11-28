@@ -41,6 +41,9 @@ class SafeAgent(FaultySensorAgent):
         self.safety_override = 0
         self.safety_enabled = int(os.environ.get('SAFETY', 0)) == 1
         self.emergency = False
+        
+        # Record the fault handler type
+        self.fault_handler_type = self.safety_layer.get_fault_handler_type()
 
         # Logging config
         self.save_runtime_data = int(os.environ.get('SAVE_RUNTIME_DATA', 0)) == 1
@@ -64,7 +67,7 @@ class SafeAgent(FaultySensorAgent):
         lidar_data[:, 1] += speed * dt
         return lidar_data
 
-    def run_step(self, input_data, timestamp, sensors=None):        
+    def run_step(self, input_data, timestamp, sensors=None):
         # Extract speed, lidar data and mission detections
         speed = input_data['speed'][1]['speed'].copy()
         lidar_data = input_data['lidar'][1].copy()
@@ -141,6 +144,8 @@ class SafeAgent(FaultySensorAgent):
                                                                          input_data=input_data,
                                                                          timestamp=timestamp,
                                                                          agent=self)
+        if self.fault_handler_type in ("SS", "S2M"):
+            self.step -= 1
 
         # Record emergency if there is a collision risk. In case of an emergency full stop is applied.
         if not self.emergency and safety_override == 3:
