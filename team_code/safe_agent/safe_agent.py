@@ -82,7 +82,8 @@ class SafeAgent(FaultySensorAgent):
             self.speed_last_custom = speed.copy()
             self.lidar_last_custom = lidar_data.copy()
         elif self.lidar_last_custom is not None:
-            lidar_data = self.update_lidar_points_custom(self.speed_last_custom, self.lidar_last_custom)
+            # lidar_data = self.update_lidar_points_custom(self.speed_last_custom, self.lidar_last_custom)
+            pass
 
         # Extract mission layer control action
         control_mission = super().run_step(input_data, timestamp, sensors)
@@ -151,17 +152,17 @@ class SafeAgent(FaultySensorAgent):
         if not self.emergency and safety_override == 3:
             self.emergency = True
 
-        # # Safety Layer does not work for even steps. If it was `safety_override` last time -- keep applying it.
-        # if self.step % 2 == 0:
-        #     if self.safety_override == 2 or self.safety_override == 3:
-        #         control_final = self.safety_layer.override_control()
-        #         safety_override = self.safety_override
-        #     elif self.emergency:
-        #         control_final = self.safety_layer.override_control()
-        #         safety_override = 3
-        #     elif self.safety_override == 1:
-        #         control_final = self.safety_layer.soft_override_control()
-        #         safety_override = 1
+        # Safety Layer does not work for even steps. If it was `safety_override` last time -- keep applying it.
+        if self.step % 2 == 0:
+            if self.safety_override == 2 or self.safety_override == 3:
+                control_final = self.safety_layer.override_control()
+                safety_override = self.safety_override
+            elif self.emergency:
+                control_final = self.safety_layer.override_control()
+                safety_override = 3
+            elif self.safety_override == 1:
+                control_final = self.safety_layer.soft_override_control()
+                safety_override = 1
         
         # Convert the safety override into a CARLA VehicleControl object
         if safety_override > 1 or self.emergency:
